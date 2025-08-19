@@ -25,7 +25,7 @@ public class ArtActivity extends AppCompatActivity {
     public void save(View view){
 
     }
-    public void selectImage(View view){
+    public void selected(View view){
 
     }
 }

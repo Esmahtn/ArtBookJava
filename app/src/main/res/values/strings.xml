@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">ArtBookJava</string>
+
+
+        <!-- Mevcut diğer string kaynaklarınız burada olabilir -->
+
+        <string name="selected_image_description">Seçili sanat eseri görseli, değiştirmek için dokunun</string>
+    <string name="add_art">Add Art</string>
+
+    <!-- Mevcut diğer string kaynaklarınız burada olabilir -->
+
 </resources>
