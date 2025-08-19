@@ -6,5 +6,5 @@
         android:id="@+id/add_art"
         android:title="@string/add_art"
         app:showAsAction="ifRoom" /> <!-- VEYA "always" VEYA "ifRoom|withText" -->
-    <!-- İsteğe bağlı olarak bir ikon da ekleyebilirsiniz: android:icon="@drawable/your_icon" -->
+
 </menu>
