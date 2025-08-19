@@ -61,6 +61,7 @@
         android:layout_marginTop="40dp"
         android:onClick="save"
         android:text="SAVE"
+        android:textColorLink="#FFEB3B"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/yearText" />
