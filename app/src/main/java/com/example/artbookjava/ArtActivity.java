@@ -21,6 +21,8 @@ import androidx.core.content.ContextCompat;
 import com.example.artbookjava.databinding.ActivityArtBinding;
 import com.google.android.material.snackbar.Snackbar;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -60,17 +62,32 @@ public class ArtActivity extends AppCompatActivity {
      * @param view Tıklanan view (buton).
      */
     public void save(View view) {
-        // TODO: Seçilen resmi ve diğer sanat eseri bilgilerini veritabanına kaydetme mantığını ekle.
-        Toast.makeText(this, "Save clicked", Toast.LENGTH_SHORT).show();
+        String name = binding.nameText.getText().toString();
+        String artist = binding.artistText.getText().toString();
+        String year = binding.yearText.getText().toString();
+        Bitmap smallImage = makeSmalllerImage(selectedImage, 300);
+        // HATA BURADA: ByteArrayInputStream yerine ByteArrayOutputStream olmalı
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream(); 
+        smallImage.compress(Bitmap.CompressFormat.PNG, 50, outputStream);
+        byte[] byteArray = outputStream.toByteArray();
     }
 
-    /**
-     * "Resim Seç" (veya benzeri) bir butona tıklandığında çağrılır.
-     * Cihazın Android sürümüne göre gerekli depolama/medya izinlerini kontrol eder,
-     * izin yoksa ister ve izin varsa galeriyi açar.
-     * @param view Tıklanan view (buton).
-     */
-    public void selected(View view) {
+    public Bitmap makeSmalllerImage(Bitmap image, int maximumSize){
+        int width = image.getWidth();
+        int height = image.getHeight();
+        float bitmapRatio = (float)width /(float) height;
+        if(bitmapRatio > 1){
+            //yatay
+            width = maximumSize;
+            height = (int)(width / bitmapRatio);
+        }else{
+            //dikey
+            height = maximumSize;
+            width = (int)(height * bitmapRatio);
+        }
+        return image.createScaledBitmap(image,width,height,true);
+    }
+ void selected(View view) {
         // Kullanıcıdan istenecek izinlerin dinamik olarak belirleneceği String dizisi.
         String[] permissionsToRequestArray;
         // Cihazın Android sürümüne göre o an gerekli olan ve henüz verilmemiş izinlerin listesi.
