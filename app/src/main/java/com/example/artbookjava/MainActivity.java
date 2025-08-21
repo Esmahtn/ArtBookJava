@@ -1,6 +1,8 @@
 package com.example.artbookjava;
 
 import android.content.Intent;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -13,7 +15,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.example.artbookjava.databinding.ActivityMainBinding;
+
+import java.util.ArrayList;
+
 public class MainActivity extends AppCompatActivity {
+    private ActivityMainBinding binding;
+    ArrayList<Art> artArrayList;
 
     // MainActivity.java - onCreate içinde
     @Override
@@ -32,6 +40,30 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        artArrayList = new ArrayList<>();
+        getData();
+    }
+    private void getData() {
+        try {
+            SQLiteDatabase database = this.openOrCreateDatabase("Arts", MODE_PRIVATE, null);
+            Cursor cursor = database.rawQuery("SELECT * FROM arts", null);
+            int nameIx = cursor.getColumnIndex("name");
+            int idIx = cursor.getColumnIndex("id");
+            while (cursor.moveToNext()){
+                String name = cursor.getString(nameIx);
+                int id = cursor.getInt(idIx);
+                System.out.println("Name: " + name + " ID: " + id);
+                Art art = new Art(name, id);
+                artArrayList.add(art);
+            }
+            cursor.close();
+
+
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+
     }
 
     @Override
