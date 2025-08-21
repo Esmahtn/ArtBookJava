@@ -3,6 +3,8 @@ package com.example.artbookjava;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteStatement;
 import android.graphics.Bitmap;
 import android.graphics.ImageDecoder;
 import android.net.Uri;
@@ -21,8 +23,7 @@ import androidx.core.content.ContextCompat;
 import com.example.artbookjava.databinding.ActivityArtBinding;
 import com.google.android.material.snackbar.Snackbar;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayOutputStream; // ByteArrayInputStream yerine ByteArrayOutputStream import edildi.
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,12 +36,11 @@ public class ArtActivity extends AppCompatActivity {
     Bitmap selectedImage;
 
     // Galeri activity'sini başlatmak ve sonucunu almak için ActivityResultLauncher.
-    // Intent tipinde bir girdi alır (galeriyi açmak için).
     ActivityResultLauncher<Intent> activityResultLauncher;
 
     // İzinleri istemek ve sonucunu almak için ActivityResultLauncher.
-    // String dizisi tipinde bir girdi alır (istenecek izinler).
     ActivityResultLauncher<String[]> permissionLauncher;
+    SQLiteDatabase database;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,153 +51,160 @@ public class ArtActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
 
         // activityResultLauncher ve permissionLauncher'ı kaydet ve callback'lerini tanımla.
-        // Bu, Activity Result API'lerinin doğru çalışması için onCreate içinde yapılmalıdır.
         registerLauncher();
     }
 
     /**
      * "Kaydet" butonuna tıklandığında çağrılır.
-     * Seçilen resmi ve diğer bilgileri (isim, sanatçı vb.) veritabanına kaydetme
-     * işlemleri burada yapılmalıdır. Bu örnekte sadece bir Toast mesajı gösteriliyor.
+     * Seçilen resmi ve diğer bilgileri (isim, sanatçı vb.) veritabanına kaydeder.
      * @param view Tıklanan view (buton).
      */
     public void save(View view) {
+        // Önce seçili bir resim olup olmadığını kontrol et.
+        if (selectedImage == null) {
+            Toast.makeText(this, "Please select an image first.", Toast.LENGTH_LONG).show();
+            return; // selectedImage null ise metottan çık, kaydetme işlemi yapma.
+        }
+
         String name = binding.nameText.getText().toString();
         String artist = binding.artistText.getText().toString();
         String year = binding.yearText.getText().toString();
+
+        // Resmi küçült. makeSmalllerImage null dönebilir, bu durumu da kontrol et.
         Bitmap smallImage = makeSmalllerImage(selectedImage, 300);
-        // HATA BURADA: ByteArrayInputStream yerine ByteArrayOutputStream olmalı
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream(); 
+
+        if (smallImage == null) {
+            Toast.makeText(this, "Error processing image.", Toast.LENGTH_SHORT).show();
+            return; // Resim küçültülemediyse metottan çık.
+        }
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         smallImage.compress(Bitmap.CompressFormat.PNG, 50, outputStream);
         byte[] byteArray = outputStream.toByteArray();
+
+        try {
+            database = this.openOrCreateDatabase("Arts", MODE_PRIVATE, null);
+            database.execSQL("CREATE TABLE IF NOT EXISTS arts (id INTEGER PRIMARY KEY, name VARCHAR, artist VARCHAR, year VARCHAR, image BLOB)"); // id eklendi
+            String sqlString = "INSERT INTO arts (name, artist, year, image) VALUES (?, ?, ?, ?)";
+            SQLiteStatement sqlStatement = database.compileStatement(sqlString);
+            sqlStatement.bindString(1, name);
+            sqlStatement.bindString(2, artist);
+            sqlStatement.bindString(3, year);
+            sqlStatement.bindBlob(4, byteArray);
+            sqlStatement.execute();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Error saving art to database.", Toast.LENGTH_LONG).show();
+            return; // Veritabanı hatası olursa da MainActivity'ye hemen dönme, kullanıcı görsün.
+            // Veya sadece Toast gösterip bu return'ü kaldırabilirsiniz, hata olsa bile döner.
+        }
+
+        // Başarılı kayıttan sonra MainActivity'ye dön.
+        Toast.makeText(this, "Art saved successfully!", Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(ArtActivity.this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); // Önceki activity'leri temizle
+        startActivity(intent);
+        finish(); // ArtActivity'yi sonlandır, geri tuşuyla tekrar gelinmesin.
     }
 
-    public Bitmap makeSmalllerImage(Bitmap image, int maximumSize){
+    /**
+     * Verilen Bitmap'i belirtilen maksimum boyuta göre küçültür.
+     * @param image Küçültülecek Bitmap.
+     * @param maximumSize Genişlik veya yükseklik için maksimum piksel değeri.
+     * @return Küçültülmüş Bitmap veya image null ise null.
+     */
+    public Bitmap makeSmalllerImage(Bitmap image, int maximumSize) {
+        if (image == null) {
+            return null; // Gelen resim null ise null dön.
+        }
         int width = image.getWidth();
         int height = image.getHeight();
-        float bitmapRatio = (float)width /(float) height;
-        if(bitmapRatio > 1){
-            //yatay
+        float bitmapRatio = (float) width / (float) height;
+
+        if (bitmapRatio > 1) { // Yatay resim
             width = maximumSize;
-            height = (int)(width / bitmapRatio);
-        }else{
-            //dikey
+            height = (int) (width / bitmapRatio);
+        } else { // Dikey veya kare resim
             height = maximumSize;
-            width = (int)(height * bitmapRatio);
+            width = (int) (height * bitmapRatio);
         }
-        return image.createScaledBitmap(image,width,height,true);
+        return Bitmap.createScaledBitmap(image, width, height, true);
     }
- void selected(View view) {
-        // Kullanıcıdan istenecek izinlerin dinamik olarak belirleneceği String dizisi.
+
+    /**
+     * "Resim Seç" butonuna tıklandığında çağrılır. İzinleri kontrol eder ve galeriyi açar.
+     * @param view Tıklanan view.
+     */
+    public void selected(View view) {
         String[] permissionsToRequestArray;
-        // Cihazın Android sürümüne göre o an gerekli olan ve henüz verilmemiş izinlerin listesi.
         List<String> permissionsNeeded = new ArrayList<>();
 
-        // Adım 1: Cihazın Android sürümüne göre hangi izinlerin gerektiğini belirle.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14 (API 34) ve üzeri
-            // Android 14 ve üzerinde, kullanıcılara "Tüm fotoğraflara erişim" veya
-            // "Belirli fotoğrafları seçme" seçenekleri sunulur.
-            // Bu nedenle hem READ_MEDIA_IMAGES hem de READ_MEDIA_VISUAL_USER_SELECTED istenir.
-
-            // READ_MEDIA_IMAGES iznini kontrol et.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                 permissionsNeeded.add(Manifest.permission.READ_MEDIA_IMAGES);
             }
-            // READ_MEDIA_VISUAL_USER_SELECTED iznini kontrol et.
-            // Bu izin, kullanıcının yalnızca belirli fotoğrafları seçmesine olanak tanır.
-            // Manifest'te de deklare edilmiş olmalıdır.
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) != PackageManager.PERMISSION_GRANTED) {
                 permissionsNeeded.add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED);
             }
-
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 (API 33)
-            // Android 13'te granüler medya izinleri geldi. Sadece resimler için READ_MEDIA_IMAGES istenir.
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                 permissionsNeeded.add(Manifest.permission.READ_MEDIA_IMAGES);
             }
-        } else { // Android 12L (API 32) ve altı
-            // Eski sürümlerde genel depolama izni olan READ_EXTERNAL_STORAGE istenir.
-            // Bu izin manifest'te android:maxSdkVersion="32" ile sınırlandırılmalıdır.
+        } else {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 permissionsNeeded.add(Manifest.permission.READ_EXTERNAL_STORAGE);
             }
         }
 
-        // Adım 2: Eğer istenmesi gereken izinler varsa (liste boş değilse) izin isteme sürecini başlat.
         if (!permissionsNeeded.isEmpty()) {
-            // İzin listesini (List<String>) bir String dizisine (String[]) çevir.
-            // permissionLauncher.launch() metodu String[] bekler.
             permissionsToRequestArray = permissionsNeeded.toArray(new String[0]);
-
-            // Kullanıcıya neden izin gerektiğini açıklayan bir mesaj (rationale) gösterilmeli mi?
             boolean showRationale = false;
             for (String perm : permissionsToRequestArray) {
-                // ActivityCompat.shouldShowRequestPermissionRationale() metodu,
-                // kullanıcı daha önce bu izni reddetmişse (ama "Bir daha sorma" dememişse) true döner.
                 if (ActivityCompat.shouldShowRequestPermissionRationale(this, perm)) {
                     showRationale = true;
-                    break; // Herhangi bir izin için rationale gerekiyorsa döngüden çık.
+                    break;
                 }
             }
 
             if (showRationale) {
-                // Kullanıcıya iznin neden gerekli olduğunu bir Snackbar ile açıkla.
-                // Kullanıcı "Give Permission" butonuna tıklarsa izinler istenir.
                 Snackbar.make(view, "Permission needed for gallery access.", Snackbar.LENGTH_INDEFINITE)
                         .setAction("Give Permission", v -> permissionLauncher.launch(permissionsToRequestArray))
                         .show();
             } else {
-                // Rationale göstermeye gerek yok (izin ilk kez isteniyor veya kullanıcı "Bir daha sorma" demiş).
-                // İzinleri doğrudan iste.
                 permissionLauncher.launch(permissionsToRequestArray);
             }
         } else {
-            // İstenmesi gereken yeni bir izin yok, yani tüm gerekli izinler zaten verilmiş.
-            // Doğrudan galeriyi aç.
             openGallery();
         }
     }
 
     /**
      * Cihazın galerisini açmak için bir Intent başlatır.
-     * Sonuç activityResultLauncher tarafından işlenir.
      */
     private void openGallery() {
-        // Galeriden bir içerik (resim) seçmek için Intent oluştur.
-        // ACTION_PICK: Bir veri öğesi seçmek için standart eylem.
-        // MediaStore.Images.Media.EXTERNAL_CONTENT_URI: Cihazın dış depolamasındaki resimlere işaret eder.
         Intent intentToGallery = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        // Galeriyi açmak için activityResultLauncher'ı kullan.
         activityResultLauncher.launch(intentToGallery);
     }
 
     /**
-     * ActivityResultLauncher'ları (hem galeri sonucu hem de izin sonucu için)
-     * onCreate sırasında kaydeder ve callback'lerini tanımlar.
+     * ActivityResultLauncher'ları kaydeder ve callback'lerini tanımlar.
      */
     private void registerLauncher() {
-        // 1. Galeriden resim seçme sonucunu işlemek için launcher:
         activityResultLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(), // Standart bir activity başlatma ve sonuç alma contract'ı.
-                result -> { // Lambda ifadesiyle ActivityResultCallback<ActivityResult>
-                    // Kullanıcı bir resim seçip "Tamam" (RESULT_OK) dediyse:
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
                     if (result.getResultCode() == RESULT_OK) {
-                        // Seçilen resmi içeren Intent'i al.
                         Intent intentFromResult = result.getData();
-                        // Intent ve içindeki veri (resim URI'si) null değilse:
                         if (intentFromResult != null && intentFromResult.getData() != null) {
-                            Uri imageData = intentFromResult.getData(); // Seçilen resmin URI'sini al.
+                            Uri imageData = intentFromResult.getData();
                             try {
-                                // Resmi Bitmap'e çevir.
-                                // Android P (API 28) ve üzeri için modern ImageDecoder sınıfını kullan.
                                 if (Build.VERSION.SDK_INT >= 28) {
                                     ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageData);
                                     selectedImage = ImageDecoder.decodeBitmap(source);
                                 } else {
-                                    // Eski sürümler için MediaStore.Images.Media.getBitmap kullan.
                                     selectedImage = MediaStore.Images.Media.getBitmap(getContentResolver(), imageData);
                                 }
-                                // Seçilen resmi layout'taki ImageView'da göster.
                                 binding.imageView.setImageBitmap(selectedImage);
                             } catch (Exception e) {
                                 e.printStackTrace();
@@ -207,35 +214,23 @@ public class ArtActivity extends AppCompatActivity {
                     }
                 });
 
-        // 2. İzin isteme sonucunu işlemek için launcher:
         permissionLauncher = registerForActivityResult(
-                new ActivityResultContracts.RequestMultiplePermissions(), // Birden fazla izin isteme contract'ı.
-                (Map<String, Boolean> permissionsResultMap) -> { // Lambda ile ActivityResultCallback<Map<String, Boolean>>
-                    // permissionsResultMap: İstenen her izin (String) için
-                    // verilip verilmediğini (Boolean) tutan bir harita.
-                    boolean canAccessMedia = false; // Medyaya erişim izni var mı? Varsayılan olarak false.
-
-                    // Android sürümüne göre hangi izinlerin verildiğini kontrol et:
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14 (API 34) ve üzeri
-                        // Android 14+'da, kullanıcı "Tüm fotoğraflara izin ver" (READ_MEDIA_IMAGES)
-                        // veya "Fotoğrafları seç" (READ_MEDIA_VISUAL_USER_SELECTED) diyebilir.
-                        // Bu iki izinden en az birinin verilmesi medyaya erişim için yeterlidir.
+                new ActivityResultContracts.RequestMultiplePermissions(),
+                (Map<String, Boolean> permissionsResultMap) -> {
+                    boolean canAccessMedia = false;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         canAccessMedia = permissionsResultMap.getOrDefault(Manifest.permission.READ_MEDIA_IMAGES, false) ||
                                 permissionsResultMap.getOrDefault(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED, false);
-                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 (API 33)
-                        // Android 13'te sadece READ_MEDIA_IMAGES izninin verilmesi yeterlidir.
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         canAccessMedia = permissionsResultMap.getOrDefault(Manifest.permission.READ_MEDIA_IMAGES, false);
-                    } else { // Android 12L (API 32) ve altı
-                        // Eski sürümlerde READ_EXTERNAL_STORAGE izninin verilmesi yeterlidir.
+                    } else {
                         canAccessMedia = permissionsResultMap.getOrDefault(Manifest.permission.READ_EXTERNAL_STORAGE, false);
                     }
 
-                    // Sonuç: Medyaya erişim izni alınabildiyse galeriyi aç.
                     if (canAccessMedia) {
                         openGallery();
                     } else {
-                        // Gerekli izin(ler) verilmemişse kullanıcıya bir Toast mesajı göster.
-                        Toast.makeText(ArtActivity.this, "Storage permission is required!", Toast.LENGTH_LONG).show();
+                        Toast.makeText(ArtActivity.this, "Storage permission is required to select an image!", Toast.LENGTH_LONG).show();
                     }
                 });
     }
