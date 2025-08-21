@@ -21,23 +21,32 @@ import com.example.artbookjava.databinding.ActivityMainBinding;
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
-    private ActivityMainBinding binding;
+    private ActivityMainBinding binding; // View Binding nesnesi
     ArrayList<Art> artArrayList;
     ArtAdapter artAdapter;
 
-    // MainActivity.java - onCreate içinde
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_main); // Önce layout set edilir
+        EdgeToEdge.enable(this); // Bu satır kalabilir
 
-        // Eğer Toolbar eklediyseniz:
-        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+        // 1. View Binding'i initialize et
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        // 2. binding.getRoot() ile layout'u set et
+        setContentView(binding.getRoot());
+
+        // Eğer Toolbar eklediyseniz ve activity_main.xml içinde ID'si "toolbar" ise:
+        // androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar); // Eski yöntem
+        // setSupportActionBar(toolbar);
+        // Binding üzerinden erişim (Eğer toolbar ID'si activity_main.xml'de varsa ve binding sınıfında oluştuysa):
+        if (binding.toolbar != null) { // Toolbar ID'si activity_main.xml'de "toolbar" olmalı
+            setSupportActionBar(binding.toolbar);
+        }
+
 
         // Geri kalan onCreate kodunuz...
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.recyclerView), (v, insets) -> {
+        // RecyclerView'a binding üzerinden erişim
+        ViewCompat.setOnApplyWindowInsetsListener(binding.recyclerView, (v, insets) -> { // binding.recyclerView ID'si activity_main.xml'de "recyclerView" olmalı
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
@@ -45,12 +54,14 @@ public class MainActivity extends AppCompatActivity {
 
         artArrayList = new ArrayList<>();
 
+        // RecyclerView'a binding üzerinden erişim
         binding.recyclerView.setLayoutManager(new LinearLayoutManager(this));
         artAdapter = new ArtAdapter(artArrayList);
         binding.recyclerView.setAdapter(artAdapter);
 
         getData();
     }
+
     private void getData() {
         try {
             SQLiteDatabase database = this.openOrCreateDatabase("Arts", MODE_PRIVATE, null);
@@ -66,12 +77,12 @@ public class MainActivity extends AppCompatActivity {
             }
             artAdapter.notifyDataSetChanged();
             cursor.close();
+            // database.close(); // Opsiyonel: Burada veya onStop/onDestroy'da kapatılabilir. Şimdilik orijinaldeki gibi bırakıyorum.
 
 
         } catch (Exception e){
             e.printStackTrace();
         }
-
     }
 
     @Override
@@ -80,6 +91,8 @@ public class MainActivity extends AppCompatActivity {
         menuInflater.inflate(R.menu.art_menu, menu);
         return super.onCreateOptionsMenu(menu);
     }
+
+    @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item){
         if(item.getItemId() == R.id.add_art){
             Intent intent = new Intent(this, ArtActivity.class);
@@ -87,7 +100,5 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
-
-
     }
 }
