@@ -3,9 +3,11 @@ package com.example.artbookjava;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageDecoder;
 import android.net.Uri;
 import android.os.Build;
@@ -50,8 +52,49 @@ public class ArtActivity extends AppCompatActivity {
         // Activity'nin content view'ını binding'in root view'ı olarak ayarla.
         setContentView(binding.getRoot());
 
+        database = this.openOrCreateDatabase("Arts", MODE_PRIVATE, null);
+
         // activityResultLauncher ve permissionLauncher'ı kaydet ve callback'lerini tanımla.
         registerLauncher();
+
+        // Intent'ten bilgileri al.
+        Intent intent = getIntent();
+        String info = intent.getStringExtra("info");
+        if (info.equals("new")) {
+            binding.nameText.setText("");
+            binding.artistText.setText("");
+            binding.yearText.setText("");
+            binding.button.setVisibility(View.VISIBLE);
+            binding.imageView.setImageResource(R.drawable.selected);
+
+            //new art
+
+        }else{
+            int artId = intent.getIntExtra("artId", 1);
+            binding.button.setVisibility(View.INVISIBLE);
+            //butonu gizledik
+            try {
+                Cursor cursor = database.rawQuery("SELECT * FROM arts WHERE id = ?", new String[]{String.valueOf(artId)});
+                int nameIx = cursor.getColumnIndex("name");
+                int artistIx = cursor.getColumnIndex("artist");
+                int yearIx = cursor.getColumnIndex("year");
+                int imageIx = cursor.getColumnIndex("image");
+                //idye göre art çekme işleme bir dizi içinde artId ile bulunup o listeleniyor
+                while (cursor.moveToNext()) {
+                    binding.nameText.setText(cursor.getString(nameIx));
+                    binding.artistText.setText(cursor.getString(artistIx));
+                    binding.yearText.setText(cursor.getString(yearIx));
+                    byte[] bytes = cursor.getBlob(imageIx);
+                    Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                    binding.imageView.setImageBitmap(bitmap);
+                }
+                cursor.close();
+
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     /**
@@ -83,7 +126,7 @@ public class ArtActivity extends AppCompatActivity {
         byte[] byteArray = outputStream.toByteArray();
 
         try {
-            database = this.openOrCreateDatabase("Arts", MODE_PRIVATE, null);
+
             database.execSQL("CREATE TABLE IF NOT EXISTS arts (id INTEGER PRIMARY KEY, name VARCHAR, artist VARCHAR, year VARCHAR, image BLOB)"); // id eklendi
             String sqlString = "INSERT INTO arts (name, artist, year, image) VALUES (?, ?, ?, ?)";
             SQLiteStatement sqlStatement = database.compileStatement(sqlString);

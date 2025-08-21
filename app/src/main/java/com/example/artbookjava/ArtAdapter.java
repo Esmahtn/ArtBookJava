@@ -1,5 +1,6 @@
 package com.example.artbookjava;
 
+import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,10 +25,28 @@ public class ArtAdapter extends RecyclerView.Adapter<ArtAdapter.ArtHolder> {
         return new ArtHolder(binding);
     }
 
+    // DOĞRU KULLANIM:
     @Override
     public void onBindViewHolder(@NonNull ArtHolder holder, int position) {
+        // 'position' parametresini sadece anlık veri bağlama için kullanın.
         holder.binding.recyclerViewTextView.setText(artArrayList.get(position).name);
 
+        holder.itemView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // OnClickListener içinde güncel pozisyonu almak için holder.getAdapterPosition() kullanın.
+                int currentPosition = holder.getAdapterPosition();
+
+                // getAdapterPosition() RecyclerView.NO_POSITION dönebilir, bu durumu kontrol edin.
+                // Bu durum, eleman henüz layout'a tam olarak yerleşmediyse veya silinmek üzereyse olabilir.
+                if (currentPosition != RecyclerView.NO_POSITION) {
+                    Intent intent = new Intent(holder.itemView.getContext(), ArtActivity.class);
+                    intent.putExtra("info", "old");
+                    intent.putExtra("artId", artArrayList.get(currentPosition).id);
+                    holder.itemView.getContext().startActivity(intent);
+                }
+            }
+        });
     }
 
     @Override
